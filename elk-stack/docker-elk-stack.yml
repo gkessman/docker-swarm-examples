@@ -1,0 +1,63 @@
+version: '3'
+
+services:
+  app:
+    image: crate/fake-apache-log-generator
+    volumes:
+      - log-data:/out
+    deploy:
+      replicas: 1
+
+  elasticsearch:
+    image: elasticsearch:5
+    networks: 
+      - elk
+    ports: 
+      - 9200:9200
+    environment:
+      ES_JAVA_OPTS: '-Xms256m -Xmx256m'
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    deploy:
+      replicas: 1
+
+  logstash:
+    image: logstash:5
+    networks: 
+      - elk
+    volumes:
+      - ./logstash/logstash.conf:/usr/share/logstash/config/logstash.conf
+      - /var/lib/docker/volumes/elk_log-data/_data/:/applogs/
+      - logstash-logs:/var/log/logstash
+    command: -f /usr/share/logstash/config/logstash.conf
+    depends_on:
+      - elasticsearch
+    deploy:
+      replicas: 1
+
+  kibana:
+    image: kibana:5
+    networks:
+      - elk
+    ports:
+      - '5601:5601'
+    depends_on:
+      - elasticsearch
+    environment:
+      ELASTICSEARCH_URL: 'http://elasticsearch:9200'
+      XPACK_SECURITY_ENABLED: 'false'
+      XPACK_MONITORING_ENABLED: 'false'
+    deploy:
+      replicas: 1
+
+networks:
+  elk:
+    driver: "overlay"
+
+volumes:
+  esdata:
+    driver: local
+  log-data:
+    driver: local
+  logstash-logs:
+    driver: local
